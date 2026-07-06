@@ -315,16 +315,23 @@ func effectivePromptFragments(global, inject, appendFragments, inherited, defaul
 // buildTemplateData merges Env (lower priority) with SDK fields (higher
 // priority) into a single map for template execution.
 func buildTemplateData(ctx PromptContext) map[string]string {
-	m := make(map[string]string, len(ctx.Env)+19)
+	_, agentBase := config.ParseQualifiedName(ctx.AgentName)
+	if agentBase == "" {
+		agentBase = ctx.TemplateName
+	}
+
+	m := make(map[string]string, len(ctx.Env)+21)
 	for k, v := range ctx.Env {
 		m[k] = v
 	}
 	// SDK fields override Env.
 	m["CityRoot"] = ctx.CityRoot
 	m["AgentName"] = ctx.AgentName
+	m["AgentBase"] = agentBase
 	m["TemplateName"] = ctx.TemplateName
 	m["BindingName"] = ctx.BindingName
 	m["BindingPrefix"] = ctx.BindingPrefix
+	m["Rig"] = ctx.RigName
 	m["RigName"] = ctx.RigName
 	m["RigRoot"] = ctx.RigRoot
 	m["WorkDir"] = ctx.WorkDir

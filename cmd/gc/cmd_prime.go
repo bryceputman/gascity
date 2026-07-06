@@ -15,6 +15,7 @@ import (
 	"github.com/gastownhall/gascity/internal/config"
 	"github.com/gastownhall/gascity/internal/fsys"
 	"github.com/gastownhall/gascity/internal/runtime"
+	workdirutil "github.com/gastownhall/gascity/internal/workdir"
 	"github.com/spf13/cobra"
 )
 
@@ -665,6 +666,10 @@ func buildPrimeContextForBeads(cityPath, cityName string, a *config.Agent, rigs 
 	// Working directory.
 	if gcDir := os.Getenv("GC_DIR"); gcDir != "" {
 		ctx.WorkDir = gcDir
+	} else if workDir, err := workdirutil.ResolveWorkDirPathStrict(cityPath, cityName, ctx.AgentName, *a, rigs); err == nil {
+		ctx.WorkDir = workDir
+	} else if stderr != nil {
+		_, _ = fmt.Fprintf(stderr, "warning: could not resolve work_dir for %s: %v\n", ctx.AgentName, err)
 	}
 
 	// Rig context.

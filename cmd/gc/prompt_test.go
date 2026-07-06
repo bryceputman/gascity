@@ -97,6 +97,21 @@ func TestRenderPromptBasicVars(t *testing.T) {
 	}
 }
 
+func TestRenderPromptProjectAliases(t *testing.T) {
+	f := fsys.NewFake()
+	f.Files["/city/prompts/test.template.md"] = []byte("Rig: {{ .Rig }}\nRigName: {{ .RigName }}\nAgentBase: {{ .AgentBase }}\nWorkDir: {{ .WorkDir }}\n")
+	ctx := PromptContext{
+		AgentName: "rabble/gr7n-project.planner",
+		RigName:   "rabble",
+		WorkDir:   "/city/.gc/rig-worktrees/rabble/planners/gr7n-project.planner",
+	}
+	got := renderPrompt(f, "/city", "gr7n", "prompts/test.template.md", ctx, "", io.Discard, nil, nil, nil)
+	want := "Rig: rabble\nRigName: rabble\nAgentBase: gr7n-project.planner\nWorkDir: /city/.gc/rig-worktrees/rabble/planners/gr7n-project.planner\n"
+	if got != want {
+		t.Errorf("renderPrompt(project aliases) = %q, want %q", got, want)
+	}
+}
+
 func TestRenderPromptAbsolutePath(t *testing.T) {
 	f := fsys.NewFake()
 	f.Files["/city/agents/ada/prompt.template.md"] = []byte("Agent: {{ .AgentName }}\n")

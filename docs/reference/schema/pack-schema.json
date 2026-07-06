@@ -718,6 +718,10 @@
             "always"
           ],
           "description": "Mode controls when the controller ensures this named session is live.\n\"on_demand\" (default): reserve identity and materialize when work or\nan explicit reference requires it.\n\"always\": keep the canonical session controller-managed.\nNote: mode=\"always\" is independent of min_active_sessions; both produce\nsessions, and gc doctor reports accidental duplicate-pool combinations."
+        },
+        "operator_visibility": {
+          "type": "string",
+          "description": "OperatorVisibility is optional operator UI metadata. Core scheduling\ntreats it as advisory and does not validate or interpret it."
         }
       },
       "additionalProperties": false,

@@ -32,6 +32,7 @@ name = "polecat"
 [[named_session]]
 template = "mayor"
 mode = "always"
+operator_visibility = "primary"
 `)
 	fs.Files["/city/extra.toml"] = []byte(`
 [[named_session]]
@@ -48,6 +49,9 @@ mode = "on_demand"
 	}
 	if sessions[0].Template != "mayor" {
 		t.Errorf("NamedSessions[0].Template = %q, want %q", sessions[0].Template, "mayor")
+	}
+	if sessions[0].OperatorVisibility != "primary" {
+		t.Errorf("NamedSessions[0].OperatorVisibility = %q, want %q", sessions[0].OperatorVisibility, "primary")
 	}
 	if sessions[1].Template != "polecat" {
 		t.Errorf("NamedSessions[1].Template = %q, want %q", sessions[1].Template, "polecat")

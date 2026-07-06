@@ -59,6 +59,63 @@ func TestBuildPrimeContextExpandsTemplateCommands(t *testing.T) {
 	}
 }
 
+func TestDoPrimeRendersProjectRigAliasesAndWorkDir(t *testing.T) {
+	clearGCEnv(t)
+
+	cityDir := t.TempDir()
+	write := func(rel, data string) {
+		path := filepath.Join(cityDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s): %v", path, err)
+		}
+	}
+	write("city.toml", `
+[workspace]
+name = "gr7n"
+
+[[rigs]]
+name = "rabble"
+path = "rigs/rabble"
+prefix = "rb"
+
+[[agent]]
+name = "gr7n-project.planner"
+dir = "rabble"
+prompt_template = "agents/project-planner/prompt.template.md"
+work_dir = ".gc/rig-worktrees/{{.Rig}}/planners/{{.AgentBase}}"
+`)
+	write("agents/project-planner/prompt.template.md", "Rig={{.Rig}}\nAgentBase={{.AgentBase}}\nWorkDir={{.WorkDir}}\nRoute={{.Rig}}/{{.AgentBase}}\n")
+
+	t.Setenv("GC_CITY", cityDir)
+	t.Setenv("GC_ALIAS", "")
+	t.Setenv("GC_AGENT", "")
+	t.Setenv("GC_RIG", "")
+	t.Setenv("GC_RIG_ROOT", "")
+	t.Setenv("GC_DIR", "")
+	t.Setenv("GC_BRANCH", "")
+
+	var stdout, stderr bytes.Buffer
+	code := doPrimeWithMode([]string{"rabble/gr7n-project.planner"}, &stdout, &stderr, false, true)
+	if code != 0 {
+		t.Fatalf("doPrimeWithMode() = %d, want 0; stderr=%q", code, stderr.String())
+	}
+	wantWorkDir := filepath.Join(cityDir, ".gc", "rig-worktrees", "rabble", "planners", "gr7n-project.planner")
+	got := stdout.String()
+	for _, want := range []string{
+		"Rig=rabble",
+		"AgentBase=gr7n-project.planner",
+		"WorkDir=" + wantWorkDir,
+		"Route=rabble/gr7n-project.planner",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stdout = %q, want %q; stderr=%q", got, want, stderr.String())
+		}
+	}
+}
+
 func TestBuildPrimeContextUsesBD105ReadyCompatibility(t *testing.T) {
 	cityPath := filepath.Join(t.TempDir(), "demo-city")
 	ctx := buildPrimeContextForBeads(cityPath, "", &config.Agent{
