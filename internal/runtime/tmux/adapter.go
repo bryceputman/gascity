@@ -383,9 +383,14 @@ func (p *Provider) ObserveLiveness(name string, processNames []string) runtime.L
 	if alive && !running {
 		running = true
 	}
+	var matched []string
+	if alive {
+		matched = p.cache.MatchedProcessNames(name, processNames)
+	}
 	return runtime.Liveness{
-		Running: running,
-		Alive:   alive,
+		Running:             running,
+		Alive:               alive,
+		MatchedProcessNames: matched,
 	}
 }
 

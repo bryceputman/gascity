@@ -677,7 +677,7 @@ ProviderSpec defines a named provider's startup parameters.
 | `prompt_flag` | string |  |  | PromptFlag is the CLI flag used when prompt_mode is "flag" (e.g. "--prompt"). |
 | `ready_delay_ms` | integer |  |  | ReadyDelayMs is milliseconds to wait after launch before the provider is considered ready. |
 | `ready_prompt_prefix` | string |  |  | ReadyPromptPrefix is the string prefix that indicates the provider is ready for input. |
-| `process_names` | []string |  |  | ProcessNames lists process names to look for when checking if the provider is running. |
+| `process_names` | []string |  |  | ProcessNames lists process names to look for when checking if the provider is running. For custom wrapper providers that launch one of several built-in CLIs decided per session (e.g. a router command that execs claude or codex), list the underlying CLI names here: when exactly one observed name maps to a known transcript family, the session bead learns that family as its provider_kind, enabling transcript discovery and family-sensitive behavior. |
 | `emits_permission_warning` | boolean |  |  | EmitsPermissionWarning is tri-state: nil = inherit, &true = enable, &false = explicit disable. |
 | `accept_startup_dialogs` | boolean |  |  | AcceptStartupDialogs is tri-state: nil = default startup dialog handling, &true = force dialog acceptance, &false = suppress it for providers that handle permissions entirely through launch flags. |
 | `env` | map[string]string |  |  | Env sets additional environment variables for the provider process. |

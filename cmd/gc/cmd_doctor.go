@@ -29,6 +29,7 @@ var (
 
 func newDoctorCmd(stdout, stderr io.Writer) *cobra.Command {
 	var fix, verbose, jsonOut, explainPostgresAuth bool
+	var checkNames []string
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check workspace health",
@@ -47,10 +48,11 @@ legacy-to-current pack rewrites that are available on this branch.`,
   gc doctor --fix
   gc doctor --verbose
   gc doctor --json
-  gc doctor --explain-postgres-auth`,
+  gc doctor --explain-postgres-auth
+  gc doctor --check route-store-scope --check inherited-rig-split-brain`,
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if doDoctor(fix, verbose, jsonOut, explainPostgresAuth, stdout, stderr) != 0 {
+			if doDoctor(fix, verbose, jsonOut, explainPostgresAuth, checkNames, stdout, stderr) != 0 {
 				return errExit
 			}
 			return nil
@@ -61,6 +63,7 @@ legacy-to-current pack rewrites that are available on this branch.`,
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit structured JSON instead of human-readable output")
 	cmd.Flags().BoolVar(&explainPostgresAuth, "explain-postgres-auth", false,
 		"after running checks, print per-scope Postgres credential resolution table (no values printed)")
+	cmd.Flags().StringArrayVar(&checkNames, "check", nil, "run only the named check(s); repeatable")
 	return cmd
 }
 
@@ -251,12 +254,6 @@ func buildDoctorChecks(cityPath string, cfg *config.City, cfgErr error, opts bui
 		register(doctor.NewPackCacheCheck(cfg.Packs, cityPath))
 	}
 
-	// Pack-source credential check: validates credentials.toml load and reports
-	// which remote imports lack a matching rule.
-	if cfgErr == nil && cfg != nil {
-		register(doctor.NewPackCredentialsCheck(cfg.Imports))
-	}
-
 	// Infrastructure checks — universal dependencies.
 	// dolt/bd/flock are checked by pack doctor scripts (check-bd.sh,
 	// check-dolt.sh) which also verify versions and service health.
@@ -299,6 +296,8 @@ func buildDoctorChecks(cityPath string, cfg *config.City, cfgErr error, opts bui
 		register(newBacklogDepthCheck(cityPath, storeFactory))
 		register(newOrderTrackingRetentionCheck(cityPath, storeFactory))
 		register(&sessionModelDoctorCheck{cfg: cfg, cityPath: cityPath, newStore: storeFactory})
+		register(newRouteStoreScopeCheck(cfg, cityPath, storeFactory))
+		register(newInheritedRigSplitBrainCheck(cfg, cityPath))
 	}
 	register(newDoctorDoltServerCheck(cityPath, opts.SkipCityDoltCheck))
 	// Host-level fork-rate watch: surfaces the per-command data-plane fork storm
@@ -397,7 +396,7 @@ func buildDoctorChecks(cityPath string, cfg *config.City, cfgErr error, opts bui
 	return checks
 }
 
-func doDoctor(fix, verbose, jsonOut, explainPostgresAuth bool, stdout, stderr io.Writer) int {
+func doDoctor(fix, verbose, jsonOut, explainPostgresAuth bool, checkNames []string, stdout, stderr io.Writer) int {
 	cityPath, err := resolveCity()
 	if err != nil {
 		fmt.Fprintf(stderr, "gc doctor: %v\n", err) //nolint:errcheck // best-effort stderr
@@ -421,6 +420,9 @@ func doDoctor(fix, verbose, jsonOut, explainPostgresAuth bool, stdout, stderr io
 		SkipCityDoltCheck:    skipCityDoltCheck,
 		SkipManagedDoltCheck: skipManagedDoltCheck,
 	}) {
+		if len(checkNames) > 0 && !doctorCheckNameMatches(check.Name(), checkNames) {
+			continue
+		}
 		d.Register(check)
 	}
 
@@ -440,6 +442,16 @@ func doDoctor(fix, verbose, jsonOut, explainPostgresAuth bool, stdout, stderr io
 		return 1
 	}
 	return 0
+}
+
+// doctorCheckNameMatches reports whether name equals any of the filter strings.
+func doctorCheckNameMatches(name string, filters []string) bool {
+	for _, f := range filters {
+		if name == f {
+			return true
+		}
+	}
+	return false
 }
 
 type expandedConfigLoadCheck struct{}

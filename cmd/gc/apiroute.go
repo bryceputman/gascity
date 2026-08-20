@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/gastownhall/gascity/internal/api"
 	"github.com/gastownhall/gascity/internal/config"
@@ -74,7 +72,7 @@ func standaloneControllerClient(cityPath string) *api.Client {
 	if bind != "127.0.0.1" && bind != "localhost" && bind != "::1" && !cfg.API.AllowMutations {
 		return nil
 	}
-	baseURL := fmt.Sprintf("http://%s", net.JoinHostPort(bind, strconv.Itoa(cfg.API.Port)))
+	baseURL := standaloneAPIBaseURL(cfg)
 	// Standalone controller serves /v0/city/{cityName}/... routes via
 	// api.NewSupervisorMux, so per-city method calls need a city-scoped
 	// client. Derive the city name from config; the controller only

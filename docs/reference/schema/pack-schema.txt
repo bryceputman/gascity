@@ -1162,7 +1162,7 @@
             "type": "string"
           },
           "type": "array",
-          "description": "ProcessNames lists process names to look for when checking if the provider is running."
+          "description": "ProcessNames lists process names to look for when checking if the provider is running.\nFor custom wrapper providers that launch one of several built-in CLIs\ndecided per session (e.g. a router command that execs claude or codex),\nlist the underlying CLI names here: when exactly one observed name maps\nto a known transcript family, the session bead learns that family as its\nprovider_kind, enabling transcript discovery and family-sensitive behavior."
         },
         "emits_permission_warning": {
           "type": "boolean",

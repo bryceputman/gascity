@@ -309,6 +309,79 @@ func TestProviderObserveLivenessUsesCacheProcessSnapshot(t *testing.T) {
 	}
 }
 
+func TestStateCache_MatchedProcessNamesReportsObservedHints(t *testing.T) {
+	// A wrapper provider scenario: the pane runs a shell wrapper and the
+	// effective CLI (claude, a node script) is a descendant. Only the hints
+	// actually present in the tree are reported, in hint order, deduplicated.
+	f := &mockFetcher{
+		state: runtimeStateSnapshot{
+			Sessions: map[string]sessionRuntimeState{
+				"agent-1": {
+					Running: true,
+					Panes: []paneRuntimeState{{
+						Command: "bash",
+						PID:     "101",
+					}},
+				},
+			},
+			Processes: newProcessSnapshot([]processRuntimeState{
+				{PID: "101", PPID: "1", Command: "bash", Args: "bash -lc router-cli"},
+				{PID: "102", PPID: "101", Command: "node", Args: "node /usr/local/bin/claude"},
+			}),
+		},
+	}
+	cache := NewStateCache(f, 2*time.Second)
+
+	got := cache.MatchedProcessNames("agent-1", []string{"codex", "claude", "node", "claude"})
+	want := []string{"claude", "node"}
+	if len(got) != len(want) {
+		t.Fatalf("MatchedProcessNames = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("MatchedProcessNames = %v, want %v", got, want)
+		}
+	}
+	if got := cache.MatchedProcessNames("agent-1", nil); got != nil {
+		t.Fatalf("MatchedProcessNames with no hints = %v, want nil", got)
+	}
+	if got := cache.MatchedProcessNames("missing", []string{"claude"}); got != nil {
+		t.Fatalf("MatchedProcessNames for unknown session = %v, want nil", got)
+	}
+	if calls := f.getCalls(); calls != 1 {
+		t.Fatalf("fetch calls = %d, want 1 across MatchedProcessNames calls", calls)
+	}
+}
+
+func TestProviderObserveLivenessReportsMatchedProcessNames(t *testing.T) {
+	f := &mockFetcher{
+		state: runtimeStateSnapshot{
+			Sessions: map[string]sessionRuntimeState{
+				"agent-1": {
+					Running: true,
+					Panes: []paneRuntimeState{{
+						Command: "bash",
+						PID:     "101",
+					}},
+				},
+			},
+			Processes: newProcessSnapshot([]processRuntimeState{
+				{PID: "101", PPID: "1", Command: "bash", Args: "bash -lc router-cli"},
+				{PID: "102", PPID: "101", Command: "node", Args: "node /usr/local/bin/claude"},
+			}),
+		},
+	}
+	provider := &Provider{cache: NewStateCache(f, time.Hour)}
+
+	got := provider.ObserveLiveness("agent-1", []string{"codex", "claude"})
+	if !got.Running || !got.Alive {
+		t.Fatalf("ObserveLiveness = %+v, want running and alive", got)
+	}
+	if len(got.MatchedProcessNames) != 1 || got.MatchedProcessNames[0] != "claude" {
+		t.Fatalf("MatchedProcessNames = %v, want [claude]", got.MatchedProcessNames)
+	}
+}
+
 func TestStateCache_RefreshFailurePreservesLastKnownGood(t *testing.T) {
 	f := &mockFetcher{
 		sessions: map[string]bool{"agent-1": true},

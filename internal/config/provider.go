@@ -79,6 +79,11 @@ type ProviderSpec struct {
 	// ReadyPromptPrefix is the string prefix that indicates the provider is ready for input.
 	ReadyPromptPrefix string `toml:"ready_prompt_prefix,omitempty"`
 	// ProcessNames lists process names to look for when checking if the provider is running.
+	// For custom wrapper providers that launch one of several built-in CLIs
+	// decided per session (e.g. a router command that execs claude or codex),
+	// list the underlying CLI names here: when exactly one observed name maps
+	// to a known transcript family, the session bead learns that family as its
+	// provider_kind, enabling transcript discovery and family-sensitive behavior.
 	ProcessNames []string `toml:"process_names,omitempty"`
 	// EmitsPermissionWarning is tri-state: nil = inherit, &true = enable,
 	// &false = explicit disable.

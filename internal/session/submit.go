@@ -322,6 +322,52 @@ func providerKind(b beads.Bead) string {
 	return ProviderFamilyFromMetadata(b.Metadata, "")
 }
 
+// ObservedProviderKind returns the transcript provider family a session bead
+// should learn from a runtime process-name observation, or "" if nothing
+// should be stamped. It is the decision half of stamping provider_kind for
+// custom wrapper providers whose effective CLI is chosen per session (e.g. a
+// router command that launches claude for some sessions and codex for others):
+// such beads have no builtin_ancestor and a provider name that maps to no
+// transcript family, so the family can only be learned from which agent
+// process is actually running.
+//
+// It returns "" — leaving the bead untouched — when:
+//   - there is no observation, or the bead already has a builtin ancestor;
+//   - the bead's existing provider_kind/provider already yields a known family
+//     (write-once: a learned or configured family is never overwritten);
+//   - no observed name maps to a known family, or more than one distinct known
+//     family is observed at once (ambiguous, e.g. an agent shelling out to a
+//     second CLI) — the caller retries on the next observation;
+//   - the single observed family already equals the stored provider_kind.
+func ObservedProviderKind(meta map[string]string, matchedProcessNames []string) string {
+	if len(matchedProcessNames) == 0 {
+		return ""
+	}
+	if strings.TrimSpace(meta["builtin_ancestor"]) != "" {
+		return ""
+	}
+	for _, key := range []string{"provider_kind", "provider"} {
+		if v := strings.TrimSpace(meta[key]); v != "" && sessionlog.KnownProviderFamily(v) {
+			return ""
+		}
+	}
+	family := ""
+	for _, name := range matchedProcessNames {
+		if !sessionlog.KnownProviderFamily(name) {
+			continue
+		}
+		observed := sessionlog.ProviderFamily(name)
+		if family != "" && family != observed {
+			return ""
+		}
+		family = observed
+	}
+	if family == "" || strings.TrimSpace(meta["provider_kind"]) == family {
+		return ""
+	}
+	return family
+}
+
 func wrappedProviderFamily(b beads.Bead, family string) bool {
 	ancestor := sessionlog.ProviderFamily(b.Metadata["builtin_ancestor"])
 	// Leave provider raw: normalizing it would collapse wrapped aliases such as

@@ -69,6 +69,53 @@ func TestStart_RoutesToRemote(t *testing.T) {
 	}
 }
 
+// livenessObserverFake wraps a fake provider with a provider-native
+// ObserveLiveness that reports matched process names.
+type livenessObserverFake struct {
+	runtime.Provider
+	observed runtime.Liveness
+	calls    int
+}
+
+func (f *livenessObserverFake) ObserveLiveness(_ string, _ []string) runtime.Liveness {
+	f.calls++
+	return f.observed
+}
+
+func TestObserveLiveness_DelegatesToRoutedObserver(t *testing.T) {
+	local := &livenessObserverFake{
+		Provider: runtime.NewFake(),
+		observed: runtime.Liveness{Running: true, Alive: true, MatchedProcessNames: []string{"claude"}},
+	}
+	remote := runtime.NewFake()
+	h := New(local, remote, isRemote)
+
+	got := h.ObserveLiveness("refinery", []string{"claude", "codex"})
+	if !got.Running || !got.Alive {
+		t.Fatalf("ObserveLiveness = %+v, want running and alive", got)
+	}
+	if len(got.MatchedProcessNames) != 1 || got.MatchedProcessNames[0] != "claude" {
+		t.Fatalf("MatchedProcessNames = %v, want [claude] from local observer", got.MatchedProcessNames)
+	}
+	if local.calls != 1 {
+		t.Fatalf("local observer calls = %d, want 1", local.calls)
+	}
+}
+
+func TestObserveLiveness_FallsBackForNonObserverBackend(t *testing.T) {
+	local, remote := runtime.NewFake(), runtime.NewFake()
+	h := New(local, remote, isRemote)
+
+	_ = h.Start(context.Background(), "polecat-1", runtime.Config{})
+	got := h.ObserveLiveness("polecat-1", nil)
+	if !got.Running {
+		t.Fatalf("ObserveLiveness = %+v, want running from remote fallback", got)
+	}
+	if got.MatchedProcessNames != nil {
+		t.Fatalf("MatchedProcessNames = %v, want nil from boolean fallback", got.MatchedProcessNames)
+	}
+}
+
 func TestListRunning_MergesBothBackends(t *testing.T) {
 	local, remote := runtime.NewFake(), runtime.NewFake()
 	h := New(local, remote, isRemote)

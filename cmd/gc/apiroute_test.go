@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/gastownhall/gascity/internal/api"
@@ -51,6 +52,18 @@ func TestStandaloneControllerClient(t *testing.T) {
 				t.Fatalf("standaloneControllerClient = nil, want non-nil")
 			}
 		})
+	}
+}
+
+func TestStandaloneControllerClientNormalizesWildcardBindForDialing(t *testing.T) {
+	dir := writeCityTOMLForRoute(t, t.TempDir(), "name = \"t\"\n[api]\nport = 8080\nbind = \"0.0.0.0\"\nallow_mutations = true\n")
+	got := standaloneControllerClient(dir)
+	if got == nil {
+		t.Fatalf("standaloneControllerClient = nil, want client")
+	}
+	baseURL := reflect.ValueOf(got).Elem().FieldByName("baseURL").String()
+	if baseURL != "http://127.0.0.1:8080" {
+		t.Fatalf("standaloneControllerClient baseURL = %q, want loopback", baseURL)
 	}
 }
 

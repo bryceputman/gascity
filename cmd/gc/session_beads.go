@@ -200,6 +200,36 @@ func stampResolvedProviderSessionMetadata(meta map[string]string, resolved *conf
 	}
 }
 
+// stampObservedProviderKind records the effective CLI family for sessions on
+// custom providers whose family cannot be derived from config: no builtin
+// ancestor and a provider name the transcript layer does not recognize. A
+// wrapper provider that picks the underlying CLI per session (e.g. a router
+// command that launches claude for some sessions and codex for others) leaves
+// the bead without a usable transcript family, so transcript discovery misses
+// and the dashboard falls back to pane capture. The runtime's process_names
+// observation identifies which CLI is actually running; when exactly one
+// observed hint maps to a known transcript family, stamp it as provider_kind
+// so transcript discovery and family-sensitive behaviors apply. The
+// family decision (write-once, ambiguity handling) lives in
+// session.ObservedProviderKind so cmd/gc stays off the sessionlog import
+// boundary; this wrapper only performs the store write.
+func stampObservedProviderKind(store beads.Store, sess *beads.Bead, matchedProcessNames []string) {
+	if store == nil || sess == nil || strings.TrimSpace(sess.ID) == "" {
+		return
+	}
+	family := session.ObservedProviderKind(sess.Metadata, matchedProcessNames)
+	if family == "" {
+		return
+	}
+	if err := store.SetMetadata(sess.ID, "provider_kind", family); err != nil {
+		return
+	}
+	if sess.Metadata == nil {
+		sess.Metadata = make(map[string]string, 1)
+	}
+	sess.Metadata["provider_kind"] = family
+}
+
 // queueChangedResolvedProviderSessionMetadata queues the resolved-provider
 // projection fields (provider, provider_kind, builtin_ancestor) whenever the
 // freshly resolved value differs from what is stored, mirroring the command

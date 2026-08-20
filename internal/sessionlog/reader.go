@@ -1518,6 +1518,19 @@ func mergePaths(defaults, extras []string) []string {
 	return result
 }
 
+// KnownProviderFamily reports whether provider maps to a transcript provider
+// family whose on-disk layout and reader this package knows. Unknown or custom
+// provider names (which ProviderFamily passes through unchanged) return false.
+func KnownProviderFamily(provider string) bool {
+	switch ProviderFamily(provider) {
+	case "codex", "gemini", "kimi", "opencode", "antigravity", "pi":
+		return true
+	}
+	// claude and claude-eco fall through ProviderFamily unchanged; match them
+	// by name like the transcript discovery layer does.
+	return strings.Contains(strings.ToLower(strings.TrimSpace(provider)), "claude")
+}
+
 // ProviderFamily returns the canonical transcript provider family for provider.
 func ProviderFamily(provider string) string {
 	p := strings.ToLower(strings.TrimSpace(provider))

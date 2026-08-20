@@ -1520,7 +1520,14 @@ func reconcileSessionBeadsTracedWithNamedDemand(
 		// the expected child process is alive (when ProcessNames configured).
 		// The desired-session fast path only needs running/alive; attachment
 		// and activity are probed by the narrower branches that use them.
-		running, alive := observeRuntimeProviderLiveness(sp, name, tp.Hints.ProcessNames)
+		liveness := runtime.ObserveLiveness(sp, name, tp.Hints.ProcessNames)
+		running, alive := liveness.Running, liveness.Alive
+		if alive {
+			// Sessions on custom wrapper providers learn their effective CLI
+			// family from the observed agent process (see
+			// stampObservedProviderKind); no-op once a family is known.
+			stampObservedProviderKind(store, session, liveness.MatchedProcessNames)
+		}
 		peek := cachedSessionPeek(cityPath, store, sp, cfg, session.ID, tp.Hints.ProcessNames)
 		recordResetStallIfDue(*session, tp.TemplateName, name, alive, startupTimeout, clk.Now().UTC(), dt, rec, stderr, trace)
 

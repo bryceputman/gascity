@@ -99,6 +99,85 @@ func TestProviderKind_PreferenceOrder(t *testing.T) {
 	}
 }
 
+// TestObservedProviderKind exercises the decision for learning a session
+// bead's transcript family from a runtime process-name observation.
+func TestObservedProviderKind(t *testing.T) {
+	cases := []struct {
+		name    string
+		meta    map[string]string
+		matched []string
+		want    string
+	}{
+		{
+			name:    "custom wrapper learns claude from observation",
+			meta:    map[string]string{"provider": "my-router"},
+			matched: []string{"claude", "node"},
+			want:    "claude",
+		},
+		{
+			name:    "custom wrapper learns codex from observation",
+			meta:    map[string]string{"provider": "my-router"},
+			matched: []string{"codex", "node"},
+			want:    "codex",
+		},
+		{
+			name:    "wrapped alias normalizes to its family",
+			meta:    map[string]string{"provider": "my-router"},
+			matched: []string{"my-pi", "node"},
+			want:    "pi",
+		},
+		{
+			name:    "ambiguous observation yields nothing",
+			meta:    map[string]string{"provider": "my-router"},
+			matched: []string{"claude", "codex"},
+			want:    "",
+		},
+		{
+			name:    "no known family in observation yields nothing",
+			meta:    map[string]string{"provider": "my-router"},
+			matched: []string{"node", "bash"},
+			want:    "",
+		},
+		{
+			name:    "empty observation yields nothing",
+			meta:    map[string]string{"provider": "my-router"},
+			matched: nil,
+			want:    "",
+		},
+		{
+			name:    "builtin ancestor is left alone",
+			meta:    map[string]string{"provider": "my-claude", "builtin_ancestor": "claude"},
+			matched: []string{"codex"},
+			want:    "",
+		},
+		{
+			name:    "known provider_kind is never overwritten",
+			meta:    map[string]string{"provider": "my-router", "provider_kind": "claude"},
+			matched: []string{"codex"},
+			want:    "",
+		},
+		{
+			name:    "known provider name needs no stamp",
+			meta:    map[string]string{"provider": "claude"},
+			matched: []string{"claude"},
+			want:    "",
+		},
+		{
+			name:    "observation matching stored family yields nothing",
+			meta:    map[string]string{"provider": "my-router", "provider_kind": "claude"},
+			matched: []string{"claude"},
+			want:    "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ObservedProviderKind(tc.meta, tc.matched); got != tc.want {
+				t.Fatalf("ObservedProviderKind(%+v, %v) = %q, want %q", tc.meta, tc.matched, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestWaitsForIdleAfterInterrupt_WrappedClaude verifies that a session
 // bead whose builtin_ancestor = "claude" (e.g. claude-max wrapping the
 // built-in) triggers the same wait-for-idle-after-interrupt branch that

@@ -142,6 +142,35 @@ func TestProviderFamilyPiAliasAnchoring(t *testing.T) {
 	}
 }
 
+func TestKnownProviderFamily(t *testing.T) {
+	tests := []struct {
+		provider string
+		want     bool
+	}{
+		{provider: "claude", want: true},
+		{provider: "claude-eco", want: true},
+		{provider: "claude-max", want: true},
+		{provider: "codex", want: true},
+		{provider: "gemini", want: true},
+		{provider: "kimi", want: true},
+		{provider: "opencode", want: true},
+		{provider: "antigravity", want: true},
+		{provider: "pi", want: true},
+		{provider: "my-pi", want: true},
+		{provider: "node", want: false},
+		{provider: "bash", want: false},
+		{provider: "my-router", want: false},
+		{provider: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.provider, func(t *testing.T) {
+			if got := KnownProviderFamily(tt.provider); got != tt.want {
+				t.Fatalf("KnownProviderFamily(%q) = %v, want %v", tt.provider, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestContentBlocksEmpty(t *testing.T) {
 	e := &Entry{}
 	if blocks := e.ContentBlocks(); blocks != nil {

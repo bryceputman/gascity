@@ -116,6 +116,17 @@ func (c *StateCache) ProcessAlive(name string, processNames []string) bool {
 	return c.currentState().processAlive(name, processNames)
 }
 
+// MatchedProcessNames returns the distinct processNames hints that match a
+// process in the named session's process tree, in hint order. Unlike
+// ProcessAlive it never treats an empty hint list as a match — there is
+// nothing to report.
+func (c *StateCache) MatchedProcessNames(name string, processNames []string) []string {
+	if len(processNames) == 0 {
+		return nil
+	}
+	return c.currentState().matchedProcessNames(name, processNames)
+}
+
 func (c *StateCache) currentState() runtimeStateSnapshot {
 	c.mu.RLock()
 	state := c.state
@@ -305,6 +316,38 @@ func (s runtimeStateSnapshot) processAlive(sessionName string, processNames []st
 		}
 	}
 	return false
+}
+
+// matchedProcessNames reports which of the processNames hints are present in
+// the session's process tree. Each hint is probed independently through the
+// same pane/descendant walk as processAlive, so the result is exactly the
+// subset of hints that would individually satisfy a liveness check. Duplicate
+// hints collapse to one entry; hint order is preserved.
+func (s runtimeStateSnapshot) matchedProcessNames(sessionName string, processNames []string) []string {
+	session, ok := s.Sessions[sessionName]
+	if !ok || !session.Running {
+		return nil
+	}
+	var matched []string
+	seen := make(map[string]struct{}, len(processNames))
+	for _, hint := range processNames {
+		hint = strings.TrimSpace(hint)
+		if hint == "" {
+			continue
+		}
+		if _, dup := seen[hint]; dup {
+			continue
+		}
+		seen[hint] = struct{}{}
+		single := map[string]struct{}{hint: {}}
+		for _, pane := range session.Panes {
+			if pane.processAlive(single, s.Processes) {
+				matched = append(matched, hint)
+				break
+			}
+		}
+	}
+	return matched
 }
 
 func (p paneRuntimeState) processAlive(names map[string]struct{}, processes processSnapshot) bool {

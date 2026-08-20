@@ -515,6 +515,73 @@ func TestSyncSessionBeads_StampsProviderFamilyMetadata(t *testing.T) {
 	}
 }
 
+func TestStampObservedProviderKind(t *testing.T) {
+	newSession := func(t *testing.T, store beads.Store, meta map[string]string) beads.Bead {
+		t.Helper()
+		b, err := store.Create(beads.Bead{
+			Title:    "router-session",
+			Type:     sessionBeadType,
+			Labels:   []string{sessionBeadLabel},
+			Metadata: meta,
+		})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		return b
+	}
+
+	// The family-decision table lives in internal/session
+	// (TestObservedProviderKind); here we cover the store-write wrapper:
+	// the chosen family is persisted and mirrored onto the in-memory bead.
+	t.Run("stamps and mirrors the decided family", func(t *testing.T) {
+		store := beads.NewMemStore()
+		b := newSession(t, store, map[string]string{"provider": "my-router"})
+
+		stampObservedProviderKind(store, &b, []string{"claude", "node"})
+
+		stored, err := store.Get(b.ID)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if got := stored.Metadata["provider_kind"]; got != "claude" {
+			t.Fatalf("stored provider_kind = %q, want claude", got)
+		}
+		if got := b.Metadata["provider_kind"]; got != "claude" {
+			t.Fatalf("in-memory provider_kind = %q, want claude", got)
+		}
+	})
+
+	t.Run("no-op when the decision yields no family", func(t *testing.T) {
+		store := beads.NewMemStore()
+		b := newSession(t, store, map[string]string{"provider": "my-router"})
+
+		stampObservedProviderKind(store, &b, []string{"claude", "codex"}) // ambiguous
+
+		stored, err := store.Get(b.ID)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if got := stored.Metadata["provider_kind"]; got != "" {
+			t.Fatalf("provider_kind = %q, want empty for ambiguous observation", got)
+		}
+	})
+
+	t.Run("nil store and empty observation are no-ops", func(t *testing.T) {
+		store := beads.NewMemStore()
+		b := newSession(t, store, map[string]string{"provider": "my-router"})
+		stampObservedProviderKind(nil, &b, []string{"claude"})
+		stampObservedProviderKind(store, &b, nil)
+		stampObservedProviderKind(store, nil, []string{"claude"})
+		stored, err := store.Get(b.ID)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if got := stored.Metadata["provider_kind"]; got != "" {
+			t.Fatalf("provider_kind = %q, want empty", got)
+		}
+	})
+}
+
 func TestSyncSessionBeads_BackfillsProviderFamilyMetadata(t *testing.T) {
 	store := beads.NewMemStore()
 	clk := &clock.Fake{Time: time.Date(2026, 3, 7, 12, 0, 0, 0, time.UTC)}
